@@ -114,6 +114,13 @@ tr:hover td{background:#f8f9ff;}
 .prog-label{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;}
 .prog-bg{height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden;}
 .prog-fill{height:8px;border-radius:4px;transition:width .6s ease;}
+/* 탭 클릭 통계 */
+.tab-stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px;}
+.tab-stat-card{background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(26,63,168,.07);display:flex;align-items:center;gap:12px;border-left:4px solid #1a3fa8;}
+.tab-stat-card .ts-icon{font-size:26px;flex-shrink:0;}
+.tab-stat-card .ts-name{font-size:11.5px;font-weight:700;color:var(--text);margin-bottom:2px;}
+.tab-stat-card .ts-cnt{font-size:22px;font-weight:900;line-height:1;}
+.tab-stat-card .ts-pct{font-size:10.5px;color:var(--muted);}
 </style>
 </head>
 <body>
@@ -132,6 +139,8 @@ tr:hover td{background:#f8f9ff;}
   <button class="tab-btn" onclick="switchTab('bytype',this)">🏷️ 유형별 분석</button>
   <button class="tab-btn" onclick="switchTab('ranking',this)">🏆 질문 랭킹</button>
   <button class="tab-btn" onclick="switchTab('fail',this)">❌ 답변실패</button>
+  <button class="tab-btn" onclick="switchTab('tabstat',this)">🖱️ 탭 클릭 통계</button>
+  <button class="tab-btn" onclick="switchTab('visitor',this)">👥 방문자 통계</button>
   <button class="tab-btn" onclick="switchTab('log',this)">📋 전체 로그</button>
 </div>
 
@@ -231,6 +240,126 @@ tr:hover td{background:#f8f9ff;}
     </div>
     <div id="failList">
       <div class="empty"><span class="ei">🔍</span>데이터를 불러오세요.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ━━━ TAB 탭클릭통계 ━━━ -->
+<div id="tab-tabstat" class="tab-content">
+
+  <div class="conn-bar">
+    <strong>🖱️ 탭 클릭 통계</strong>
+    <span style="font-size:12px;color:#555">구글 스프레드시트에 기록된 tab_click 이벤트를 분석합니다.</span>
+    <button class="btn btn-orange btn-sm" onclick="loadTabData()">📥 데이터 불러오기</button>
+    <button class="btn btn-ghost btn-sm" onclick="exportTabCSV()">⬇️ CSV 내보내기</button>
+  </div>
+
+  <!-- 기간 필터 -->
+  <div class="filter-row">
+    <label>📅 기간</label>
+    <input type="date" id="tabDateFrom">
+    <span style="font-size:12px;color:var(--muted)">~</span>
+    <input type="date" id="tabDateTo">
+    <button class="btn btn-teal btn-sm" onclick="applyTabFilter()">적용</button>
+    <button class="btn btn-ghost btn-sm" onclick="resetTabFilter()">초기화</button>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpi-grid" style="margin-bottom:16px">
+    <div class="kpi-card"><div class="kpi-label">총 탭 클릭</div><div class="kpi-value" id="tk-total">—</div><div class="kpi-sub">전체 합계</div><div class="kpi-icon">🖱️</div></div>
+    <div class="kpi-card o"><div class="kpi-label">오늘 클릭</div><div class="kpi-value" id="tk-today">—</div><div class="kpi-sub">today</div><div class="kpi-icon">📅</div></div>
+    <div class="kpi-card t"><div class="kpi-label">TOP 탭</div><div class="kpi-value" style="font-size:13px;margin-top:4px" id="tk-top">—</div><div class="kpi-sub" id="tk-top-cnt"></div><div class="kpi-icon">🏆</div></div>
+    <div class="kpi-card p"><div class="kpi-label">활성 탭 수</div><div class="kpi-value" id="tk-kinds">—</div><div class="kpi-sub">종류</div><div class="kpi-icon">🗂️</div></div>
+  </div>
+
+  <!-- 탭별 카드 그리드 -->
+  <div class="tab-stat-grid" id="tabStatGrid">
+    <div class="empty"><span class="ei">📭</span>데이터를 불러오세요.</div>
+  </div>
+
+  <!-- 탭 클릭 바 차트 -->
+  <div class="chart-card" style="margin-bottom:16px">
+    <div class="chart-title">📊 탭별 클릭 수 비교</div>
+    <div class="chart-wrap tall"><canvas id="chartTabBar"></canvas></div>
+  </div>
+
+  <!-- 일별 탭 클릭 추이 -->
+  <div class="chart-card" style="margin-bottom:16px">
+    <div class="chart-title">📈 일별 탭 클릭 추이</div>
+    <div class="chart-wrap tall"><canvas id="chartTabDaily"></canvas></div>
+  </div>
+
+  <!-- 상세 테이블 -->
+  <div class="table-card">
+    <div class="table-head">
+      <div class="table-head-title">📋 탭 클릭 상세 순위</div>
+      <span id="tabStatCount" style="font-size:12px;color:var(--muted)"></span>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>순위</th><th>탭 이름</th><th>클릭 수</th><th>비율</th><th>일평균</th></tr></thead>
+        <tbody id="tabStatBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ━━━ TAB 방문자통계 ━━━ -->
+<div id="tab-visitor" class="tab-content">
+
+  <div class="conn-bar">
+    <strong>👥 방문자 통계</strong>
+    <span style="font-size:12px;color:#555">페이지 방문 시 자동 기록된 데이터를 분석합니다.</span>
+    <button class="btn btn-orange btn-sm" onclick="loadVisitorData()">📥 데이터 불러오기</button>
+    <button class="btn btn-ghost btn-sm" onclick="exportVisitorCSV()">⬇️ CSV 내보내기</button>
+  </div>
+
+  <div class="filter-row">
+    <label>📅 기간</label>
+    <input type="date" id="visDtFrom">
+    <span style="font-size:12px;color:var(--muted)">~</span>
+    <input type="date" id="visDtTo">
+    <button class="btn btn-teal btn-sm" onclick="applyVisFilter()">적용</button>
+    <button class="btn btn-ghost btn-sm" onclick="resetVisFilter()">초기화</button>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpi-grid" style="margin-bottom:16px">
+    <div class="kpi-card"><div class="kpi-label">총 방문 수</div><div class="kpi-value" id="vk-total">—</div><div class="kpi-sub">전체 페이지뷰</div><div class="kpi-icon">👥</div></div>
+    <div class="kpi-card o"><div class="kpi-label">오늘 방문</div><div class="kpi-value" id="vk-today">—</div><div class="kpi-sub">today</div><div class="kpi-icon">📅</div></div>
+    <div class="kpi-card t"><div class="kpi-label">최근 7일</div><div class="kpi-value" id="vk-week">—</div><div class="kpi-sub">7-day</div><div class="kpi-icon">📆</div></div>
+    <div class="kpi-card p"><div class="kpi-label">일 평균</div><div class="kpi-value" id="vk-avg">—</div><div class="kpi-sub">방문/일</div><div class="kpi-icon">📊</div></div>
+    <div class="kpi-card" style="border-top-color:#22c55e"><div class="kpi-label">모바일</div><div class="kpi-value" style="color:#22c55e" id="vk-mobile">—</div><div class="kpi-sub">모바일 비율</div><div class="kpi-icon">📱</div></div>
+    <div class="kpi-card" style="border-top-color:#6366f1"><div class="kpi-label">PC</div><div class="kpi-value" style="color:#6366f1" id="vk-pc">—</div><div class="kpi-sub">PC 비율</div><div class="kpi-icon">💻</div></div>
+  </div>
+
+  <!-- 차트 -->
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <div class="chart-title">📈 일별 방문자 추이</div>
+      <div class="chart-wrap tall"><canvas id="chartVisDaily"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">📱 기기별 비율</div>
+      <div class="chart-wrap"><canvas id="chartVisDevice"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">🕐 시간대별 방문 분포</div>
+      <div class="chart-wrap"><canvas id="chartVisHour"></canvas></div>
+    </div>
+  </div>
+
+  <!-- 일별 상세 테이블 -->
+  <div class="table-card">
+    <div class="table-head">
+      <div class="table-head-title">📋 일별 방문자 상세</div>
+      <span id="visTableCount" style="font-size:12px;color:var(--muted)"></span>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>날짜</th><th>총 방문</th><th>모바일</th><th>PC</th><th>기타</th></tr></thead>
+        <tbody id="visTableBody"></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -647,12 +776,497 @@ function exportCSV() {
   a.click();
 }
 
-// ━━━ 초기 날짜 설정 ━━━
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 🖱️ 탭 클릭 통계
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 탭 메타 정보 (이모지·색상)
+const TAB_CONFIG = {
+  '학사안내':    { emoji:'🎓', color:'#1a3fa8' },
+  '장학_학자금': { emoji:'💰', color:'#e8547a' },
+  '학생서비스':  { emoji:'🛎', color:'#f5a623' },
+  '편의시설':    { emoji:'🏢', color:'#2bbfb3' },
+  '기타안내':    { emoji:'📋', color:'#8b5cf6' },
+  '흡연구역':    { emoji:'🚬', color:'#6b7280' },
+  '캠퍼스안내':  { emoji:'🗺️', color:'#10b981' },
+  '설립자유일한':{ emoji:'👨‍💼', color:'#7c3aed' },
+  '웰니스현황':  { emoji:'🏋️', color:'#22c55e' },
+  '캠퍼스MBTI': { emoji:'🧠', color:'#ec4899' },
+  '전자출결':    { emoji:'📱', color:'#0ea5e9' },
+  '공결안내':    { emoji:'✅', color:'#f26522' },
+  'AI챗봇':     { emoji:'🤖', color:'#64748b' },
+};
+
+// GAS에서 탭 클릭 로그를 받아올 별도 URL (챗봇 로그 GAS에 탭 시트가 있을 경우 파라미터로 구분)
+// 기존 GAS_URL에 ?sheet=tab_click 파라미터를 추가해 탭 로그 시트를 분리해서 불러옵니다
+const TAB_GAS_URL = GAS_URL; // 같은 GAS URL 사용, sheet 파라미터로 구분
+
+let tabAllData = [], tabFiltered = [];
+let chartTabBar = null, chartTabDaily = null;
+
+// ── 탭 데이터 로드 ──
+function loadTabData() {
+  document.getElementById('loadingBar').classList.add('show');
+
+  const cbName = 'tab_cb_' + Date.now();
+  const timer = setTimeout(() => {
+    delete window[cbName];
+    const s = document.getElementById('_tab_jsonp');
+    if (s) s.remove();
+    document.getElementById('loadingBar').classList.remove('show');
+    alert('탭 클릭 데이터 로드 실패. GAS URL 및 시트 설정을 확인하세요.');
+  }, 10000);
+
+  window[cbName] = function(raw) {
+    clearTimeout(timer);
+    delete window[cbName];
+    const s = document.getElementById('_tab_jsonp');
+    if (s) s.remove();
+    document.getElementById('loadingBar').classList.remove('show');
+
+    // raw: [{date, time, menu_name}, ...] 형태 기대
+    tabAllData = (Array.isArray(raw) ? raw : []).map(r => ({
+      date:      parseDate(r.date || r.timestamp || r['날짜'] || ''),
+      time:      parseTime(r.time || r['시간'] || ''),
+      menu_name: r.menu_name || r['탭명'] || r['menu'] || '',
+    })).filter(r => r.menu_name);
+
+    tabFiltered = [...tabAllData];
+    renderTabAll();
+  };
+
+  const sc = document.createElement('script');
+  sc.id  = '_tab_jsonp';
+  // GAS 측에서 ?sheet=tab_click&callback=xxx 로 탭 클릭 시트 데이터를 반환해야 합니다
+  sc.src = `${TAB_GAS_URL}?sheet=tab_click&callback=${cbName}`;
+  document.body.appendChild(sc);
+}
+
+// ── 필터 ──
+function applyTabFilter() {
+  const from = document.getElementById('tabDateFrom').value || '';
+  const to   = document.getElementById('tabDateTo').value   || '';
+  tabFiltered = tabAllData.filter(r => {
+    if (from && r.date < from) return false;
+    if (to   && r.date > to)   return false;
+    return true;
+  });
+  renderTabAll();
+}
+function resetTabFilter() {
+  document.getElementById('tabDateFrom').value = '';
+  document.getElementById('tabDateTo').value   = '';
+  tabFiltered = [...tabAllData];
+  renderTabAll();
+}
+
+// ── 전체 렌더 ──
+function renderTabAll() {
+  renderTabKPI();
+  renderTabCards();
+  renderTabBarChart();
+  renderTabDailyChart();
+  renderTabTable();
+}
+
+// ── KPI ──
+function renderTabKPI() {
+  const total    = tabFiltered.length;
+  const today    = new Date().toISOString().slice(0,10);
+  const todayCnt = tabFiltered.filter(r => r.date === today).length;
+  const counts   = {};
+  tabFiltered.forEach(r => { counts[r.menu_name] = (counts[r.menu_name]||0) + 1; });
+  const sorted   = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+  const top      = sorted[0];
+  const cfg      = top ? (TAB_CONFIG[top[0]] || {emoji:'🖱️'}) : null;
+
+  document.getElementById('tk-total').textContent  = total.toLocaleString();
+  document.getElementById('tk-today').textContent  = todayCnt;
+  document.getElementById('tk-kinds').textContent  = sorted.length;
+  document.getElementById('tk-top').textContent    = top ? (cfg.emoji+' '+top[0]) : '—';
+  document.getElementById('tk-top-cnt').textContent= top ? top[1]+'회' : '';
+}
+
+// ── 탭별 카드 그리드 ──
+function renderTabCards() {
+  const total  = tabFiltered.length || 1;
+  const counts = {};
+  tabFiltered.forEach(r => { counts[r.menu_name] = (counts[r.menu_name]||0) + 1; });
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+  const el = document.getElementById('tabStatGrid');
+
+  if (!sorted.length) {
+    el.innerHTML = '<div class="empty"><span class="ei">📭</span>데이터가 없습니다.</div>';
+    return;
+  }
+  el.innerHTML = sorted.map(([name, cnt]) => {
+    const cfg = TAB_CONFIG[name] || { emoji:'🖱️', color:'#94a3b8' };
+    const pct = Math.round(cnt / total * 100);
+    return `<div class="tab-stat-card" style="border-left-color:${cfg.color}">
+      <div class="ts-icon">${cfg.emoji}</div>
+      <div>
+        <div class="ts-name">${name}</div>
+        <div class="ts-cnt" style="color:${cfg.color}">${cnt.toLocaleString()}</div>
+        <div class="ts-pct">${pct}% · ${cnt}회</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── 탭별 바 차트 ──
+function renderTabBarChart() {
+  const counts = {};
+  tabFiltered.forEach(r => { counts[r.menu_name] = (counts[r.menu_name]||0) + 1; });
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+
+  if (chartTabBar) chartTabBar.destroy();
+  chartTabBar = new Chart(document.getElementById('chartTabBar'), {
+    type: 'bar',
+    data: {
+      labels:   sorted.map(([k]) => (TAB_CONFIG[k]?.emoji||'') + ' ' + k),
+      datasets: [{
+        label: '클릭 수',
+        data:  sorted.map(([,v]) => v),
+        backgroundColor: sorted.map(([k]) => TAB_CONFIG[k]?.color || '#94a3b8'),
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { font: { size: 10 }, maxRotation: 30 } },
+        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+      }
+    }
+  });
+}
+
+// ── 일별 탭 클릭 추이 차트 ──
+function renderTabDailyChart() {
+  const daily = {};
+  tabFiltered.forEach(r => { if (r.date) daily[r.date] = (daily[r.date]||0) + 1; });
+  const dates = Object.keys(daily).sort();
+
+  if (chartTabDaily) chartTabDaily.destroy();
+  chartTabDaily = new Chart(document.getElementById('chartTabDaily'), {
+    type: 'line',
+    data: {
+      labels: dates,
+      datasets: [{
+        label: '일별 탭 클릭 수',
+        data: dates.map(d => daily[d]),
+        borderColor: '#f26522',
+        backgroundColor: 'rgba(242,101,34,0.08)',
+        borderWidth: 2.5, pointRadius: 4,
+        pointBackgroundColor: '#f26522',
+        fill: true, tension: .35
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { font: { size: 10 }, maxTicksLimit: 14 } },
+        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+      }
+    }
+  });
+}
+
+// ── 상세 순위 테이블 ──
+function renderTabTable() {
+  const total  = tabFiltered.length || 1;
+  const counts = {};
+  const dateSets = {};
+  tabFiltered.forEach(r => {
+    counts[r.menu_name]   = (counts[r.menu_name]||0) + 1;
+    if (!dateSets[r.menu_name]) dateSets[r.menu_name] = new Set();
+    if (r.date) dateSets[r.menu_name].add(r.date);
+  });
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+  document.getElementById('tabStatCount').textContent = sorted.length + '개 탭';
+
+  const tbody = document.getElementById('tabStatBody');
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">데이터 없음</td></tr>';
+    return;
+  }
+  tbody.innerHTML = sorted.map(([name, cnt], i) => {
+    const cfg  = TAB_CONFIG[name] || { emoji:'🖱️', color:'#94a3b8' };
+    const pct  = Math.round(cnt / total * 100);
+    const days = dateSets[name]?.size || 1;
+    const avg  = (cnt / days).toFixed(1);
+    const numCls = i===0?'g':i===1?'s':i===2?'b':'';
+    return `<tr>
+      <td><div class="rank-num ${numCls}" style="display:inline-flex">${i+1}</div></td>
+      <td><span style="font-size:15px">${cfg.emoji}</span> <strong>${name}</strong></td>
+      <td><span style="color:${cfg.color};font-weight:800;font-size:14px">${cnt.toLocaleString()}</span>회</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="flex:1;height:6px;background:#f0f0f0;border-radius:3px;min-width:60px">
+            <div style="height:6px;border-radius:3px;background:${cfg.color};width:${Math.round(cnt/sorted[0][1]*100)}%"></div>
+          </div>
+          <span style="font-size:11px;color:var(--muted)">${pct}%</span>
+        </div>
+      </td>
+      <td style="color:var(--muted);font-size:12px">${avg}회/일</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── CSV 내보내기 ──
+function exportTabCSV() {
+  if (!tabFiltered.length) { alert('데이터가 없습니다.'); return; }
+  const header = '날짜,시간,탭명\n';
+  const rows = tabFiltered.map(r =>
+    `"${r.date||''}","${r.time||''}","${r.menu_name||''}"`
+  ).join('\n');
+  const blob = new Blob(['\uFEFF'+header+rows], { type:'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `탭클릭통계_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ── 탭 통계 초기 날짜 설정 ──
 (function(){
   const t=new Date(), f=new Date(t);
   f.setDate(f.getDate()-30);
-  document.getElementById('dateTo').value  =t.toISOString().slice(0,10);
-  document.getElementById('dateFrom').value=f.toISOString().slice(0,10);
+  document.getElementById('tabDateTo').value   = t.toISOString().slice(0,10);
+  document.getElementById('tabDateFrom').value = f.toISOString().slice(0,10);
+})();
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 👥 방문자 통계
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let visAllData = [], visFiltered = [];
+let chartVisDaily = null, chartVisDevice = null, chartVisHour = null;
+
+// ── 데이터 로드 ──
+function loadVisitorData() {
+  document.getElementById('loadingBar').classList.add('show');
+  const cbName = 'vis_cb_' + Date.now();
+  const timer = setTimeout(() => {
+    delete window[cbName];
+    const s = document.getElementById('_vis_jsonp');
+    if (s) s.remove();
+    document.getElementById('loadingBar').classList.remove('show');
+    alert('방문자 데이터 로드 실패. GAS 설정을 확인하세요.');
+  }, 10000);
+
+  window[cbName] = function(raw) {
+    clearTimeout(timer);
+    delete window[cbName];
+    const s = document.getElementById('_vis_jsonp');
+    if (s) s.remove();
+    document.getElementById('loadingBar').classList.remove('show');
+
+    visAllData = (Array.isArray(raw) ? raw : []).map(r => ({
+      date:   parseDate(r.date || ''),
+      time:   parseTime(r.time || ''),
+      device: r.device || '기타',
+    })).filter(r => r.date);
+
+    visFiltered = [...visAllData];
+    renderVisAll();
+  };
+
+  const sc = document.createElement('script');
+  sc.id  = '_vis_jsonp';
+  sc.src = `${GAS_URL}?sheet=visitor&callback=${cbName}`;
+  document.body.appendChild(sc);
+}
+
+// ── 필터 ──
+function applyVisFilter() {
+  const from = document.getElementById('visDtFrom').value || '';
+  const to   = document.getElementById('visDtTo').value   || '';
+  visFiltered = visAllData.filter(r => {
+    if (from && r.date < from) return false;
+    if (to   && r.date > to)   return false;
+    return true;
+  });
+  renderVisAll();
+}
+function resetVisFilter() {
+  document.getElementById('visDtFrom').value = '';
+  document.getElementById('visDtTo').value   = '';
+  visFiltered = [...visAllData];
+  renderVisAll();
+}
+
+// ── 전체 렌더 ──
+function renderVisAll() {
+  renderVisKPI();
+  renderVisDailyChart();
+  renderVisDeviceChart();
+  renderVisHourChart();
+  renderVisTable();
+}
+
+// ── KPI ──
+function renderVisKPI() {
+  const total   = visFiltered.length;
+  const today   = new Date().toISOString().slice(0,10);
+  const week    = new Date(Date.now() - 7*24*60*60*1000).toISOString().slice(0,10);
+  const todayCnt= visFiltered.filter(r => r.date === today).length;
+  const weekCnt = visFiltered.filter(r => r.date >= week).length;
+
+  // 일 평균 계산
+  const dates   = [...new Set(visFiltered.map(r => r.date))];
+  const avg     = dates.length > 0 ? (total / dates.length).toFixed(1) : 0;
+
+  const mobileCnt = visFiltered.filter(r => r.device === '모바일').length;
+  const pcCnt     = visFiltered.filter(r => r.device === 'PC').length;
+  const mobilePct = total > 0 ? Math.round(mobileCnt / total * 100) : 0;
+  const pcPct     = total > 0 ? Math.round(pcCnt     / total * 100) : 0;
+
+  document.getElementById('vk-total').textContent  = total.toLocaleString();
+  document.getElementById('vk-today').textContent  = todayCnt;
+  document.getElementById('vk-week').textContent   = weekCnt;
+  document.getElementById('vk-avg').textContent    = avg;
+  document.getElementById('vk-mobile').textContent = mobilePct + '%';
+  document.getElementById('vk-pc').textContent     = pcPct + '%';
+}
+
+// ── 일별 방문자 라인 차트 ──
+function renderVisDailyChart() {
+  const daily = {};
+  visFiltered.forEach(r => { if (r.date) daily[r.date] = (daily[r.date]||0) + 1; });
+  const dates = Object.keys(daily).sort();
+
+  if (chartVisDaily) chartVisDaily.destroy();
+  chartVisDaily = new Chart(document.getElementById('chartVisDaily'), {
+    type: 'line',
+    data: {
+      labels: dates,
+      datasets: [{
+        label: '일별 방문자',
+        data: dates.map(d => daily[d]),
+        borderColor: '#1a3fa8',
+        backgroundColor: 'rgba(26,63,168,0.08)',
+        borderWidth: 2.5, pointRadius: 4,
+        pointBackgroundColor: '#1a3fa8',
+        fill: true, tension: .35
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { font: { size: 10 }, maxTicksLimit: 14 } },
+        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+      }
+    }
+  });
+}
+
+// ── 기기별 도넛 차트 ──
+function renderVisDeviceChart() {
+  const counts = { '모바일': 0, 'PC': 0, '기타': 0 };
+  visFiltered.forEach(r => { counts[r.device] = (counts[r.device]||0) + 1; });
+  const colors = { '모바일': '#22c55e', 'PC': '#6366f1', '기타': '#94a3b8' };
+
+  if (chartVisDevice) chartVisDevice.destroy();
+  chartVisDevice = new Chart(document.getElementById('chartVisDevice'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(counts).map(k => ({ '모바일':'📱 모바일', 'PC':'💻 PC', '기타':'📎 기타' }[k]||k)),
+      datasets: [{
+        data: Object.values(counts),
+        backgroundColor: Object.keys(counts).map(k => colors[k]||'#ccc'),
+        borderWidth: 2, borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 14, padding: 10 } } }
+    }
+  });
+}
+
+// ── 시간대별 바 차트 ──
+function renderVisHourChart() {
+  const hours = Array(24).fill(0);
+  visFiltered.forEach(r => {
+    if (r.time) {
+      const h = parseInt(r.time.split(':')[0]);
+      if (!isNaN(h) && h >= 0 && h < 24) hours[h]++;
+    }
+  });
+  const maxV = Math.max(...hours, 1);
+  if (chartVisHour) chartVisHour.destroy();
+  chartVisHour = new Chart(document.getElementById('chartVisHour'), {
+    type: 'bar',
+    data: {
+      labels: hours.map((_, i) => i + '시'),
+      datasets: [{
+        label: '방문 수',
+        data: hours,
+        backgroundColor: hours.map(v => v === maxV ? '#f26522' : '#c7d2fe'),
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { font: { size: 9 }, maxRotation: 0 } },
+        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+      }
+    }
+  });
+}
+
+// ── 일별 상세 테이블 ──
+function renderVisTable() {
+  const daily = {};
+  visFiltered.forEach(r => {
+    if (!r.date) return;
+    if (!daily[r.date]) daily[r.date] = { total: 0, 모바일: 0, PC: 0, 기타: 0 };
+    daily[r.date].total++;
+    daily[r.date][r.device] = (daily[r.date][r.device]||0) + 1;
+  });
+  const dates  = Object.keys(daily).sort().reverse();
+  const tbody  = document.getElementById('visTableBody');
+  document.getElementById('visTableCount').textContent = dates.length + '일';
+
+  if (!dates.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">데이터 없음</td></tr>';
+    return;
+  }
+  tbody.innerHTML = dates.map(d => {
+    const r = daily[d];
+    return `<tr>
+      <td style="font-weight:700">${d}</td>
+      <td><span style="color:#1a3fa8;font-weight:800">${r.total}</span>명</td>
+      <td style="color:#22c55e;font-weight:700">📱 ${r['모바일']||0}</td>
+      <td style="color:#6366f1;font-weight:700">💻 ${r['PC']||0}</td>
+      <td style="color:#94a3b8">${r['기타']||0}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── CSV 내보내기 ──
+function exportVisitorCSV() {
+  if (!visFiltered.length) { alert('데이터가 없습니다.'); return; }
+  const header = '날짜,시간,기기\n';
+  const rows   = visFiltered.map(r => `"${r.date||''}","${r.time||''}","${r.device||''}"`).join('\n');
+  const blob   = new Blob(['\uFEFF'+header+rows], { type:'text/csv;charset=utf-8' });
+  const a      = document.createElement('a');
+  a.href       = URL.createObjectURL(blob);
+  a.download   = `방문자통계_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ── 방문자 초기 날짜 설정 ──
+(function(){
+  const t=new Date(), f=new Date(t);
+  f.setDate(f.getDate()-30);
+  document.getElementById('visDtTo').value   = t.toISOString().slice(0,10);
+  document.getElementById('visDtFrom').value = f.toISOString().slice(0,10);
 })();
 </script>
 </body>
