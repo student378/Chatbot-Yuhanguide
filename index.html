@@ -129,7 +129,7 @@ tr:hover td{background:#f8f9ff;}
   <div style="font-size:30px">📊</div>
   <div>
     <h1>유한봇 질문 로그 대시보드</h1>
-    <p id="connStatus">⏳ 데이터 불러오기 버튼을 눌러주세요</p>
+    <p id="connStatus">⏳ 데이터 자동 불러오는 중...</p>
   </div>
 </div>
 
@@ -815,7 +815,7 @@ function loadTabData() {
     const s = document.getElementById('_tab_jsonp');
     if (s) s.remove();
     document.getElementById('loadingBar').classList.remove('show');
-    alert('탭 클릭 데이터 로드 실패. GAS URL 및 시트 설정을 확인하세요.');
+    console.warn('탭 클릭 데이터 로드 실패. GAS URL 및 시트 설정을 확인하세요.');
   }, 10000);
 
   window[cbName] = function(raw) {
@@ -1053,7 +1053,7 @@ function loadVisitorData() {
     const s = document.getElementById('_vis_jsonp');
     if (s) s.remove();
     document.getElementById('loadingBar').classList.remove('show');
-    alert('방문자 데이터 로드 실패. GAS 설정을 확인하세요.');
+    console.warn('방문자 데이터 로드 실패. GAS 설정을 확인하세요.');
   }, 10000);
 
   window[cbName] = function(raw) {
@@ -1268,6 +1268,23 @@ function exportVisitorCSV() {
   document.getElementById('visDtTo').value   = t.toISOString().slice(0,10);
   document.getElementById('visDtFrom').value = f.toISOString().slice(0,10);
 })();
+
+// ── 페이지 진입 시 자동 데이터 조회 ──
+// 3개 시트(챗봇로그·탭클릭·방문자)를 순차적으로 로드합니다.
+// JSONP 특성상 동시 호출 시 _jsonp id 충돌 방지를 위해 500ms 간격을 둡니다.
+(function autoLoad() {
+  loadData();
+  setTimeout(loadTabData,    500);
+  setTimeout(loadVisitorData, 1000);
+})();
+
+// ── 5분마다 자동 갱신 ──
+setInterval(function() {
+  loadData();
+  setTimeout(loadTabData,    500);
+  setTimeout(loadVisitorData, 1000);
+}, 5 * 60 * 1000);
+
 </script>
 </body>
 </html>
