@@ -448,24 +448,35 @@ function parseDate(v) {
 
 function parseTime(v) {
   if (!v) return '';
-  // ISO 형식: 1899-12-30T00:39:26.000Z → 시간만 추출해 KST 변환
+  
+  // 1. ISO 형식 (예: 1899-12-30T... 또는 최신 날짜)
   if (typeof v === 'string' && v.includes('T')) {
     const d = new Date(v);
     if (!isNaN(d)) {
-      const kst = new Date(d.getTime() + 8.5*60*60*1000);
-      return kst.toISOString().slice(11,19);  // HH:mm:ss
+      // 1899년 데이터는 과거 한성 표준시(+08:27:52 = 30472000ms) 적용
+      // 1900년 이후 데이터는 현재 KST(+09:00 = 32400000ms) 적용
+      const is1899 = d.getFullYear() <= 1900;
+      const offsetMs = is1899 ? 30472000 : 32400000;
+      
+      const kst = new Date(d.getTime() + offsetMs);
+      return kst.toISOString().slice(11,19);
     }
   }
-  // 숫자(엑셀 시간 소수점) 처리: 0.5 = 12:00:00
+  
+  // 2. 숫자 형식 (구글 시트 소수점 시간 처리)
   if (typeof v === 'number') {
     const totalSec = Math.round(v * 86400);
-    const h = Math.floor(totalSec/3600).toString().padStart(2,'0');
-    const m = Math.floor((totalSec%3600)/60).toString().padStart(2,'0');
-    const s = (totalSec%60).toString().padStart(2,'0');
+    const h = Math.floor(totalSec / 3600).toString().padStart(2, '0');
+    const m = Math.floor((totalSec % 3600) / 60).toString().padStart(2, '0');
+    const s = (totalSec % 60).toString().padStart(2, '0');
     return `${h}:${m}:${s}`;
   }
-  // HH:mm:ss 이미 문자열
-  if (typeof v === 'string' && /^\d{2}:\d{2}/.test(v)) return v.slice(0,8);
+  
+  // 3. 이미 문자열로 된 시간 (HH:mm:ss)
+  if (typeof v === 'string' && /^\d{2}:\d{2}/.test(v)) {
+    return v.slice(0,8);
+  }
+  
   return String(v);
 }
 
