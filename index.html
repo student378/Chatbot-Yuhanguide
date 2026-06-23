@@ -452,7 +452,7 @@ function parseTime(v) {
   if (typeof v === 'string' && v.includes('T')) {
     const d = new Date(v);
     if (!isNaN(d)) {
-      const kst = new Date(d.getTime() + 9*60*60*1000);
+      const kst = new Date(d.getTime() + 8.5*60*60*1000);
       return kst.toISOString().slice(11,19);  // HH:mm:ss
     }
   }
