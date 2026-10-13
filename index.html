@@ -121,9 +121,27 @@ tr:hover td{background:#f8f9ff;}
 .tab-stat-card .ts-name{font-size:11.5px;font-weight:700;color:var(--text);margin-bottom:2px;}
 .tab-stat-card .ts-cnt{font-size:22px;font-weight:900;line-height:1;}
 .tab-stat-card .ts-pct{font-size:10.5px;color:var(--muted);}
+/* 관리자 로그인 */
+.login-wrap{position:fixed;inset:0;background:rgba(15,23,42,.6);display:none;align-items:center;justify-content:center;z-index:1000;padding:16px;}
+.login-wrap.show{display:flex;}
+.login-box{background:#fff;border-radius:16px;padding:24px 20px;width:100%;max-width:340px;box-shadow:0 10px 40px rgba(0,0,0,.25);}
+.login-box h2{font-size:16px;color:var(--blue);margin-bottom:6px;}
+.login-box p{font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;}
+.login-box input{width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;margin-bottom:10px;}
+.login-box .err{color:#ef4444;font-size:12px;min-height:16px;margin-bottom:6px;}
 </style>
 </head>
 <body>
+
+<div class="login-wrap" id="loginWrap">
+  <form class="login-box" onsubmit="doLogin(event)">
+    <h2>🔒 관리자 로그인</h2>
+    <p>학생 질문 기록은 관리자만 볼 수 있습니다.<br>Apps Script에 설정한 관리자 비밀번호를 입력하세요.</p>
+    <input type="password" id="loginPw" placeholder="관리자 비밀번호" autocomplete="current-password">
+    <div class="err" id="loginErr"></div>
+    <button class="btn btn-primary" style="width:100%;padding:11px" id="loginBtn">로그인</button>
+  </form>
+</div>
 
 <div class="header">
   <div style="font-size:30px">📊</div>
@@ -131,6 +149,7 @@ tr:hover td{background:#f8f9ff;}
     <h1>유한봇 질문 로그 대시보드</h1>
     <p id="connStatus">⏳ 데이터 자동 불러오는 중...</p>
   </div>
+  <button class="btn btn-sm" style="margin-left:auto;background:rgba(255,255,255,.18);color:#fff" onclick="doLogout()">로그아웃</button>
 </div>
 
 <!-- 탭 네비게이션 -->
@@ -142,6 +161,7 @@ tr:hover td{background:#f8f9ff;}
   <button class="tab-btn" onclick="switchTab('tabstat',this)">🖱️ 탭 클릭 통계</button>
   <button class="tab-btn" onclick="switchTab('visitor',this)">👥 방문자 통계</button>
   <button class="tab-btn" onclick="switchTab('log',this)">📋 전체 로그</button>
+  <button class="tab-btn" onclick="switchTab('notice',this); loadNoticeAdmin();">📢 공지관리</button>
 </div>
 
 <div class="loading-bar" id="loadingBar"></div>
@@ -364,6 +384,40 @@ tr:hover td{background:#f8f9ff;}
   </div>
 </div>
 
+<!-- ━━━ TAB 공지관리 ━━━ -->
+<div id="tab-notice" class="tab-content">
+  <div class="table-card" style="padding:16px">
+    <div class="table-head-title" style="margin-bottom:12px" id="nfTitle">✏️ 새 공지 작성</div>
+    <input type="hidden" id="nfId">
+    <div class="filter-row" style="flex-direction:column;align-items:stretch">
+      <input id="nfTitleIn" maxlength="100" placeholder="제목 (필수)" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+      <textarea id="nfContent" rows="5" maxlength="5000" placeholder="내용" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit"></textarea>
+    </div>
+    <div class="filter-row">
+      <label>중요도</label>
+      <select id="nfImp"><option>일반</option><option>중요</option><option>긴급</option></select>
+      <label>게시 시작</label><input type="date" id="nfStart">
+      <label>종료</label><input type="date" id="nfEnd">
+      <label><input type="checkbox" id="nfHidden"> 숨김</label>
+    </div>
+    <div class="filter-row">
+      <label>이미지</label><input type="file" id="nfFile" accept="image/jpeg,image/png,image/gif,image/webp" onchange="uploadNoticeImage(this)">
+      <input id="nfImg" placeholder="이미지 주소 (업로드하면 자동 입력)" style="flex:1;min-width:180px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px">
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">종료일을 비우면 계속 게시됩니다. 종료일 당일까지 보이고 다음 날 자동으로 내려갑니다. 시작일이 미래면 그날부터 보입니다.</div>
+    <button class="btn btn-primary" onclick="saveNotice()" id="nfSave">저장</button>
+    <button class="btn btn-ghost" onclick="resetNoticeForm()">새로 쓰기</button>
+    <span id="nfMsg" style="font-size:12px;margin-left:8px"></span>
+  </div>
+  <div class="table-card">
+    <div class="table-head"><div class="table-head-title">📢 공지 목록 (숨김·예약 포함)</div><span id="nlCount" style="font-size:12px;color:var(--muted)"></span></div>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th>상태</th><th>제목</th><th>기간</th><th>조회</th><th>관리</th></tr></thead>
+      <tbody id="nlBody"><tr><td colspan="5"><div class="empty">공지관리 탭을 열면 불러옵니다.</div></td></tr></tbody>
+    </table></div>
+  </div>
+</div>
+
 <!-- ━━━ TAB 5: 전체 로그 ━━━ -->
 <div id="tab-log" class="tab-content">
 
@@ -375,7 +429,7 @@ tr:hover td{background:#f8f9ff;}
       <option>편의시설</option><option>기타안내</option><option>흡연구역</option>
       <option>캠퍼스안내</option><option>설립자유일한</option><option>웰니스현황</option>
       <option>캠퍼스MBTI</option><option>전자출결</option><option>공결안내</option>
-      <option>학과안내</option><option>천원의아침밥</option><option>답변실패</option><option>기타</option>
+      <option>학과안내</option><option>천원의아침밥</option><option>천원매점</option><option>답변실패</option><option>기타</option>
     </select>
     <label>🔍 검색</label>
     <input type="text" id="searchQ" placeholder="질문 검색..." style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;" oninput="applyFilter()">
@@ -417,9 +471,63 @@ const TYPE_CONFIG = {
   '공결안내':    {color:'#f26522',emoji:'✅'},
   '학과안내':    {color:'#3b82f6',emoji:'🎓'},
   '천원의아침밥':{color:'#f97316',emoji:'🍙'},
+  '천원매점':    {color:'#0f766e',emoji:'🛒'},
+  '공지사항':    {color:'#db2777',emoji:'📢'},
+  '일반답변':    {color:'#64748b',emoji:'💬'},
+  '미답변':      {color:'#ef4444',emoji:'❔'},
   '답변실패':    {color:'#ef4444',emoji:'❌'},
   '기타':        {color:'#94a3b8',emoji:'📎'},
 };
+
+// ━━━ 공통 헬퍼 ━━━
+// 학생이 입력한 질문은 화면에 '글자'로만 표시 (태그·스크립트로 실행되지 않게)
+function esc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+// 이 컴퓨터 기준 날짜 (toISOString은 세계표준시라 오전 9시 전에는 하루 전 날짜가 됨)
+function localYmd(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+// CSV 칸: 엑셀이 = + - @ 로 시작하는 값을 수식으로 실행하지 않게
+function csvCell(v){let s=String(v==null?'':v);if(/^[=+\-@]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';}
+const FAIL_TYPES=['답변실패','미답변'];
+
+let ADMIN_TOKEN='';
+try{ADMIN_TOKEN=sessionStorage.getItem('yb_admin_token')||'';}catch(e){}
+let refreshTimer=null;
+function showLogin(msg){
+  document.getElementById('loginErr').textContent=msg||'';
+  document.getElementById('loginWrap').classList.add('show');
+  setTimeout(()=>document.getElementById('loginPw').focus(),50);
+}
+function handleAuthError(raw){
+  if(raw && !Array.isArray(raw) && raw.error==='auth'){
+    ADMIN_TOKEN='';try{sessionStorage.removeItem('yb_admin_token');}catch(e){}
+    showLogin('로그인 시간이 지났습니다. 다시 로그인해 주세요.');
+    return true;
+  }
+  return false;
+}
+async function doLogin(ev){
+  ev.preventDefault();
+  const pw=document.getElementById('loginPw').value;
+  if(!pw){document.getElementById('loginErr').textContent='비밀번호를 입력하세요.';return;}
+  const btn=document.getElementById('loginBtn');btn.disabled=true;btn.textContent='확인 중...';
+  try{
+    const res=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'login',password:pw})});
+    const d=await res.json();
+    if(d.result==='success'){
+      ADMIN_TOKEN=d.token;try{sessionStorage.setItem('yb_admin_token',d.token);}catch(e){}
+      document.getElementById('loginPw').value='';
+      document.getElementById('loginWrap').classList.remove('show');
+      loadAll();
+    } else document.getElementById('loginErr').textContent=d.message||'로그인 실패';
+  }catch(e){document.getElementById('loginErr').textContent='서버에 연결하지 못했습니다.';}
+  btn.disabled=false;btn.textContent='로그인';
+}
+function doLogout(){
+  if(ADMIN_TOKEN){fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'logout',token:ADMIN_TOKEN})}).catch(()=>{});}
+  ADMIN_TOKEN='';try{sessionStorage.removeItem('yb_admin_token');}catch(e){}
+  allData=[];filtered=[];tabAllData=[];tabFiltered=[];visAllData=[];visFiltered=[];
+  showLogin('로그아웃되었습니다.');
+}
+function tokenParam(){return '&token='+encodeURIComponent(ADMIN_TOKEN);}
 
 let allData=[], filtered=[];
 let chartDonut, chartHour, chartDaily;
@@ -501,6 +609,7 @@ function loadData() {
     if(s) s.remove();
     document.getElementById('loadingBar').classList.remove('show');
 
+    if(handleAuthError(raw)){document.getElementById('connStatus').textContent='🔒 로그인이 필요합니다.';return;}
     // 날짜·시간 정규화
     allData = (Array.isArray(raw) ? raw : []).map(r => ({
       ...r,
@@ -515,7 +624,7 @@ function loadData() {
 
   const sc = document.createElement('script');
   sc.id  = '_jsonp';
-  sc.src = `${GAS_URL}?callback=${cbName}`;
+  sc.src = `${GAS_URL}?sheet=log&callback=${cbName}${tokenParam()}`;
   document.body.appendChild(sc);
 }
 
@@ -568,13 +677,13 @@ function renderAll() {
 // ━━━ KPI ━━━
 function renderKPI() {
   const total   = filtered.length;
-  const today   = new Date().toISOString().slice(0,10);
+  const today   = localYmd();
   const todayCnt= filtered.filter(r=>r.date===today).length;
-  const failCnt = filtered.filter(r=>r.answerType==='답변실패').length;
+  const failCnt = filtered.filter(r=>FAIL_TYPES.includes(r.answerType)).length;
   const rate    = total>0 ? Math.round((1-failCnt/total)*100) : 0;
 
   const counts={};
-  filtered.forEach(r=>{const t=r.answerType||'기타'; if(t!=='답변실패') counts[t]=(counts[t]||0)+1;});
+  filtered.forEach(r=>{const t=r.answerType||'기타'; if(!FAIL_TYPES.includes(t)) counts[t]=(counts[t]||0)+1;});
   const topEntry = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
 
   document.getElementById('k-total').textContent = total.toLocaleString();
@@ -661,10 +770,10 @@ function renderTypeCards() {
   if(!sorted.length){el.innerHTML='<div class="empty"><span class="ei">📭</span>데이터가 없습니다.</div>';return;}
   el.innerHTML=sorted.map(([t,cnt])=>{
     const cfg=TYPE_CONFIG[t]||TYPE_CONFIG['기타'];
-    return `<div class="type-card" onclick="showTypeLog('${t}')" title="${t} 질문 보기">
+    return `<div class="type-card" data-type="${esc(t)}" onclick="showTypeLog(this.dataset.type)" title="${esc(t)} 질문 보기">
       <div class="tc-icon">${cfg.emoji}</div>
       <div class="tc-info">
-        <div class="tc-name">${t}</div>
+        <div class="tc-name">${esc(t)}</div>
         <div class="tc-cnt" style="color:${cfg.color}">${cnt.toLocaleString()}</div>
         <div class="tc-pct">${Math.round(cnt/total*100)}% · 클릭시 상세</div>
       </div>
@@ -687,7 +796,7 @@ function renderTypeProgress() {
     const barW=Math.round(cnt/maxV*100);
     return `<div class="prog-item">
       <div class="prog-label">
-        <span>${cfg.emoji} ${t}</span>
+        <span>${cfg.emoji} ${esc(t)}</span>
         <span style="color:${cfg.color};font-weight:700">${cnt}건 (${pct}%)</span>
       </div>
       <div class="prog-bg"><div class="prog-fill" style="width:${barW}%;background:${cfg.color}"></div></div>
@@ -702,9 +811,9 @@ function showTypeLog(type) {
   const cfg=TYPE_CONFIG[type]||TYPE_CONFIG['기타'];
   document.getElementById('typeLogBody').innerHTML=rows.length
     ? rows.map(r=>`<tr>
-        <td style="color:var(--muted)">${r.date||''}</td>
-        <td style="color:var(--muted)">${r.time||''}</td>
-        <td>${r.question||''}</td>
+        <td style="color:var(--muted)">${esc(r.date)}</td>
+        <td style="color:var(--muted)">${esc(r.time)}</td>
+        <td>${esc(r.question)}</td>
       </tr>`).join('')
     : '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--muted)">데이터 없음</td></tr>';
   document.getElementById('typeLogCard').style.display='block';
@@ -724,7 +833,7 @@ function renderRank() {
     const barW=Math.round(cnt/maxV*100);
     return `<div class="rank-item">
       <div class="rank-num ${numCls}">${i+1}</div>
-      <div class="rank-q" title="${q}">${q}</div>
+      <div class="rank-q" title="${esc(q)}">${esc(q)}</div>
       <div class="rank-bar-bg"><div class="rank-bar" style="width:${barW}%;background:${i<3?'#f26522':'#1a3fa8'}"></div></div>
       <div class="rank-cnt">${cnt}회</div>
     </div>`;
@@ -733,7 +842,7 @@ function renderRank() {
 
 // ━━━ 답변 실패 ━━━
 function renderFail() {
-  const fails=filtered.filter(r=>r.answerType==='답변실패');
+  const fails=filtered.filter(r=>FAIL_TYPES.includes(r.answerType));
   document.getElementById('fail-cnt').textContent=fails.length+'건';
   const el=document.getElementById('failList');
   if(!fails.length){el.innerHTML='<div class="empty"><span class="ei">🎉</span>답변 실패 질문이 없습니다!</div>';return;}
@@ -745,9 +854,9 @@ function renderFail() {
     <tbody>${sorted.map(([q,cnt])=>{
       const lastDate=fails.filter(r=>r.question===q).map(r=>r.date).sort().reverse()[0]||'';
       return `<tr>
-        <td>${q}</td>
+        <td>${esc(q)}</td>
         <td><span style="color:#ef4444;font-weight:700">${cnt}회</span></td>
-        <td style="color:var(--muted);font-size:11px">${lastDate}</td>
+        <td style="color:var(--muted);font-size:11px">${esc(lastDate)}</td>
         <td><button onclick="markAdded(this)" class="btn btn-sm" style="background:#e0f7f6;color:var(--teal)">✅ 완료</button></td>
       </tr>`;
     }).join('')}</tbody></table></div>`;
@@ -767,10 +876,10 @@ function renderTable() {
     const cfg=TYPE_CONFIG[r.answerType]||TYPE_CONFIG['기타'];
     return `<tr>
       <td style="color:var(--muted);font-size:11px">${filtered.length-i}</td>
-      <td style="white-space:nowrap;color:var(--muted);font-size:11px">${r.date||''}</td>
-      <td style="white-space:nowrap;color:var(--muted);font-size:11px">${r.time||''}</td>
-      <td>${r.question||''}</td>
-      <td><span class="badge" style="background:${cfg.color}20;color:${cfg.color}">${cfg.emoji} ${r.answerType||'기타'}</span></td>
+      <td style="white-space:nowrap;color:var(--muted);font-size:11px">${esc(r.date)}</td>
+      <td style="white-space:nowrap;color:var(--muted);font-size:11px">${esc(r.time)}</td>
+      <td>${esc(r.question)}</td>
+      <td><span class="badge" style="background:${cfg.color}20;color:${cfg.color}">${cfg.emoji} ${esc(r.answerType||'기타')}</span></td>
     </tr>`;
   }).join('');
 }
@@ -779,11 +888,11 @@ function renderTable() {
 function exportCSV() {
   if(!filtered.length){alert('데이터가 없습니다.');return;}
   const header='날짜,시간,질문내용,답변유형\n';
-  const rows=filtered.map(r=>`"${r.date||''}","${r.time||''}","${(r.question||'').replace(/"/g,'""')}","${r.answerType||''}"`).join('\n');
+  const rows=filtered.map(r=>[r.date,r.time,r.question,r.answerType].map(csvCell).join(',')).join('\n');
   const blob=new Blob(['\uFEFF'+header+rows],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=`유한봇_질문로그_${new Date().toISOString().slice(0,10)}.csv`;
+  a.download=`유한봇_질문로그_${localYmd()}.csv`;
   a.click();
 }
 
@@ -807,6 +916,7 @@ const TAB_CONFIG = {
   '전자출결':    { emoji:'📱', color:'#0ea5e9' },
   '공결안내':    { emoji:'✅', color:'#f26522' },
   'AI챗봇':     { emoji:'🤖', color:'#64748b' },
+  '공지사항':    { emoji:'📢', color:'#db2777' },
 };
 
 // GAS에서 탭 클릭 로그를 받아올 별도 URL (챗봇 로그 GAS에 탭 시트가 있을 경우 파라미터로 구분)
@@ -836,6 +946,7 @@ function loadTabData() {
     if (s) s.remove();
     document.getElementById('loadingBar').classList.remove('show');
 
+    if(handleAuthError(raw)) return;
     // raw: [{date, time, menu_name}, ...] 형태 기대
     tabAllData = (Array.isArray(raw) ? raw : []).map(r => ({
       date:      parseDate(r.date || r.timestamp || r['날짜'] || ''),
@@ -843,14 +954,13 @@ function loadTabData() {
       menu_name: r.menu_name || r['탭명'] || r['menu'] || '',
     })).filter(r => r.menu_name);
 
-    tabFiltered = [...tabAllData];
-    renderTabAll();
+    applyTabFilter(); // 화면에 보이는 기간(기본 최근 30일)을 그대로 적용
   };
 
   const sc = document.createElement('script');
   sc.id  = '_tab_jsonp';
   // GAS 측에서 ?sheet=tab_click&callback=xxx 로 탭 클릭 시트 데이터를 반환해야 합니다
-  sc.src = `${TAB_GAS_URL}?sheet=tab_click&callback=${cbName}`;
+  sc.src = `${TAB_GAS_URL}?sheet=tab_click&callback=${cbName}${tokenParam()}`;
   document.body.appendChild(sc);
 }
 
@@ -884,7 +994,7 @@ function renderTabAll() {
 // ── KPI ──
 function renderTabKPI() {
   const total    = tabFiltered.length;
-  const today    = new Date().toISOString().slice(0,10);
+  const today    = localYmd();
   const todayCnt = tabFiltered.filter(r => r.date === today).length;
   const counts   = {};
   tabFiltered.forEach(r => { counts[r.menu_name] = (counts[r.menu_name]||0) + 1; });
@@ -917,7 +1027,7 @@ function renderTabCards() {
     return `<div class="tab-stat-card" style="border-left-color:${cfg.color}">
       <div class="ts-icon">${cfg.emoji}</div>
       <div>
-        <div class="ts-name">${name}</div>
+        <div class="ts-name">${esc(name)}</div>
         <div class="ts-cnt" style="color:${cfg.color}">${cnt.toLocaleString()}</div>
         <div class="ts-pct">${pct}% · ${cnt}회</div>
       </div>
@@ -1012,7 +1122,7 @@ function renderTabTable() {
     const numCls = i===0?'g':i===1?'s':i===2?'b':'';
     return `<tr>
       <td><div class="rank-num ${numCls}" style="display:inline-flex">${i+1}</div></td>
-      <td><span style="font-size:15px">${cfg.emoji}</span> <strong>${name}</strong></td>
+      <td><span style="font-size:15px">${cfg.emoji}</span> <strong>${esc(name)}</strong></td>
       <td><span style="color:${cfg.color};font-weight:800;font-size:14px">${cnt.toLocaleString()}</span>회</td>
       <td>
         <div style="display:flex;align-items:center;gap:6px">
@@ -1032,12 +1142,12 @@ function exportTabCSV() {
   if (!tabFiltered.length) { alert('데이터가 없습니다.'); return; }
   const header = '날짜,시간,탭명\n';
   const rows = tabFiltered.map(r =>
-    `"${r.date||''}","${r.time||''}","${r.menu_name||''}"`
+    [r.date,r.time,r.menu_name].map(csvCell).join(',')
   ).join('\n');
   const blob = new Blob(['\uFEFF'+header+rows], { type:'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `탭클릭통계_${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = `탭클릭통계_${localYmd()}.csv`;
   a.click();
 }
 
@@ -1045,8 +1155,8 @@ function exportTabCSV() {
 (function(){
   const t=new Date(), f=new Date(t);
   f.setDate(f.getDate()-30);
-  document.getElementById('tabDateTo').value   = t.toISOString().slice(0,10);
-  document.getElementById('tabDateFrom').value = f.toISOString().slice(0,10);
+  document.getElementById('tabDateTo').value   = localYmd(t);
+  document.getElementById('tabDateFrom').value = localYmd(f);
 })();
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1074,19 +1184,19 @@ function loadVisitorData() {
     if (s) s.remove();
     document.getElementById('loadingBar').classList.remove('show');
 
+    if(handleAuthError(raw)) return;
     visAllData = (Array.isArray(raw) ? raw : []).map(r => ({
       date:   parseDate(r.date || ''),
       time:   parseTime(r.time || ''),
       device: r.device || '기타',
     })).filter(r => r.date);
 
-    visFiltered = [...visAllData];
-    renderVisAll();
+    applyVisFilter(); // 화면에 보이는 기간(기본 최근 30일)을 그대로 적용
   };
 
   const sc = document.createElement('script');
   sc.id  = '_vis_jsonp';
-  sc.src = `${GAS_URL}?sheet=visitor&callback=${cbName}`;
+  sc.src = `${GAS_URL}?sheet=visitor&callback=${cbName}${tokenParam()}`;
   document.body.appendChild(sc);
 }
 
@@ -1120,8 +1230,8 @@ function renderVisAll() {
 // ── KPI ──
 function renderVisKPI() {
   const total   = visFiltered.length;
-  const today   = new Date().toISOString().slice(0,10);
-  const week    = new Date(Date.now() - 7*24*60*60*1000).toISOString().slice(0,10);
+  const today   = localYmd();
+  const week    = localYmd(new Date(Date.now() - 6*24*60*60*1000)); // 오늘 포함 7일
   const todayCnt= visFiltered.filter(r => r.date === today).length;
   const weekCnt = visFiltered.filter(r => r.date >= week).length;
 
@@ -1251,7 +1361,7 @@ function renderVisTable() {
   tbody.innerHTML = dates.map(d => {
     const r = daily[d];
     return `<tr>
-      <td style="font-weight:700">${d}</td>
+      <td style="font-weight:700">${esc(d)}</td>
       <td><span style="color:#1a3fa8;font-weight:800">${r.total}</span>명</td>
       <td style="color:#22c55e;font-weight:700">📱 ${r['모바일']||0}</td>
       <td style="color:#6366f1;font-weight:700">💻 ${r['PC']||0}</td>
@@ -1264,11 +1374,11 @@ function renderVisTable() {
 function exportVisitorCSV() {
   if (!visFiltered.length) { alert('데이터가 없습니다.'); return; }
   const header = '날짜,시간,기기\n';
-  const rows   = visFiltered.map(r => `"${r.date||''}","${r.time||''}","${r.device||''}"`).join('\n');
+  const rows   = visFiltered.map(r => [r.date,r.time,r.device].map(csvCell).join(',')).join('\n');
   const blob   = new Blob(['\uFEFF'+header+rows], { type:'text/csv;charset=utf-8' });
   const a      = document.createElement('a');
   a.href       = URL.createObjectURL(blob);
-  a.download   = `방문자통계_${new Date().toISOString().slice(0,10)}.csv`;
+  a.download   = `방문자통계_${localYmd()}.csv`;
   a.click();
 }
 
@@ -1276,21 +1386,140 @@ function exportVisitorCSV() {
 (function(){
   const t=new Date(), f=new Date(t);
   f.setDate(f.getDate()-30);
-  document.getElementById('visDtTo').value   = t.toISOString().slice(0,10);
-  document.getElementById('visDtFrom').value = f.toISOString().slice(0,10);
+  document.getElementById('visDtTo').value   = localYmd(t);
+  document.getElementById('visDtFrom').value = localYmd(f);
 })();
 
 // ── 페이지 진입 시 자동 데이터 조회 ──
 // 3개 시트(챗봇로그·탭클릭·방문자)를 순차적으로 로드합니다.
 // JSONP 특성상 동시 호출 시 _jsonp id 충돌 방지를 위해 500ms 간격을 둡니다.
-(function autoLoad() {
+function loadAll() {
   loadData();
   setTimeout(loadTabData,    500);
   setTimeout(loadVisitorData, 1000);
+}
+(function autoLoad() {
+  if (ADMIN_TOKEN) loadAll(); else showLogin();
 })();
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 📢 공지관리 (로그인한 관리자만)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let noticeAdminList = [];
+async function postAdmin(obj) {
+  const res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(Object.assign({ token: ADMIN_TOKEN }, obj)) });
+  const d = await res.json();
+  if (d.message === '인증 필요') { handleAuthError({ error:'auth' }); throw new Error('인증 필요'); }
+  return d;
+}
+function loadNoticeAdmin() {
+  if (!ADMIN_TOKEN) { showLogin(); return; }
+  const cbName = 'nt_cb_' + Date.now();
+  window[cbName] = function (raw) {
+    delete window[cbName];
+    const s = document.getElementById('_nt_jsonp'); if (s) s.remove();
+    noticeAdminList = Array.isArray(raw) ? raw : [];
+    renderNoticeAdmin();
+  };
+  const sc = document.createElement('script');
+  sc.id = '_nt_jsonp';
+  sc.src = `${GAS_URL}?sheet=notice&admin=1&callback=${cbName}${tokenParam()}`;
+  document.body.appendChild(sc);
+}
+function noticeState(n) {
+  const t = localYmd();
+  if (n.hidden === 'Y') return ['숨김', '#94a3b8'];
+  if (n.startDate && n.startDate > t) return ['예약', '#f59e0b'];
+  if (n.endDate && n.endDate < t) return ['종료', '#94a3b8'];
+  return ['게시 중', '#10b981'];
+}
+function renderNoticeAdmin() {
+  const tb = document.getElementById('nlBody');
+  document.getElementById('nlCount').textContent = noticeAdminList.length + '건';
+  if (!noticeAdminList.length) { tb.innerHTML = '<tr><td colspan="5"><div class="empty">등록된 공지가 없습니다.</div></td></tr>'; return; }
+  tb.innerHTML = noticeAdminList.map((n, i) => {
+    const [st, col] = noticeState(n);
+    return `<tr>
+      <td><span class="badge" style="background:${col}20;color:${col}">${st}</span></td>
+      <td><span class="badge" style="background:#eef0f8;color:var(--blue)">${esc(n.importance)}</span> ${esc(n.title)}</td>
+      <td style="font-size:11px;color:var(--muted);white-space:nowrap">${esc(n.startDate)} ~ ${esc(n.endDate || '무기한')}</td>
+      <td>${Number(n.views) || 0}</td>
+      <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="editNotice(${i})">수정</button>
+        <button class="btn btn-sm" style="background:#fde8e8;color:#ef4444" onclick="deleteNotice(${i})">삭제</button></td>
+    </tr>`;
+  }).join('');
+}
+function resetNoticeForm() {
+  ['nfId','nfTitleIn','nfContent','nfEnd','nfImg'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('nfStart').value = localYmd();
+  document.getElementById('nfImp').value = '일반';
+  document.getElementById('nfHidden').checked = false;
+  document.getElementById('nfFile').value = '';
+  document.getElementById('nfTitle').textContent = '✏️ 새 공지 작성';
+}
+function editNotice(i) {
+  const n = noticeAdminList[i];
+  document.getElementById('nfId').value = n.id;
+  document.getElementById('nfTitleIn').value = n.title;
+  document.getElementById('nfContent').value = n.content;
+  document.getElementById('nfImp').value = n.importance;
+  document.getElementById('nfStart').value = n.startDate;
+  document.getElementById('nfEnd').value = n.endDate;
+  document.getElementById('nfHidden').checked = n.hidden === 'Y';
+  document.getElementById('nfImg').value = n.imageUrl;
+  document.getElementById('nfTitle').textContent = '✏️ 공지 수정';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function noticeMsg(t, bad) { const m = document.getElementById('nfMsg'); m.textContent = t; m.style.color = bad ? '#ef4444' : '#10b981'; }
+async function saveNotice() {
+  const id = document.getElementById('nfId').value;
+  const body = {
+    action: id ? 'noticeUpdate' : 'noticeCreate', id,
+    title: document.getElementById('nfTitleIn').value.trim(),
+    content: document.getElementById('nfContent').value,
+    importance: document.getElementById('nfImp').value,
+    startDate: document.getElementById('nfStart').value,
+    endDate: document.getElementById('nfEnd').value,
+    hidden: document.getElementById('nfHidden').checked ? 'Y' : 'N',
+    imageUrl: document.getElementById('nfImg').value.trim()
+  };
+  if (!body.title) { noticeMsg('제목을 입력하세요.', true); return; }
+  const btn = document.getElementById('nfSave'); btn.disabled = true;
+  try {
+    const d = await postAdmin(body);
+    if (d.result === 'success') { noticeMsg('저장했습니다.'); resetNoticeForm(); loadNoticeAdmin(); }
+    else noticeMsg(d.message || '저장 실패', true);
+  } catch (e) { noticeMsg(e.message === '인증 필요' ? '다시 로그인해 주세요.' : '서버에 연결하지 못했습니다.', true); }
+  btn.disabled = false;
+}
+async function deleteNotice(i) {
+  const n = noticeAdminList[i];
+  if (!confirm(`「${n.title}」 공지를 삭제할까요? 되돌릴 수 없습니다.`)) return;
+  try {
+    const d = await postAdmin({ action: 'noticeDelete', id: n.id });
+    if (d.result === 'success') loadNoticeAdmin(); else alert(d.message || '삭제 실패');
+  } catch (e) {}
+}
+function uploadNoticeImage(input) {
+  const f = input.files && input.files[0]; if (!f) return;
+  if (f.size > 5 * 1024 * 1024) { noticeMsg('5MB 이하 이미지만 올릴 수 있습니다.', true); input.value = ''; return; }
+  const r = new FileReader();
+  r.onload = async () => {
+    noticeMsg('이미지 올리는 중...');
+    try {
+      const d = await postAdmin({ action: 'uploadImage', fileName: f.name, imageData: r.result });
+      if (d.result === 'success') { document.getElementById('nfImg').value = d.url; noticeMsg('이미지를 올렸습니다.'); }
+      else noticeMsg(d.message || '업로드 실패', true);
+    } catch (e) { noticeMsg('업로드 실패', true); }
+  };
+  r.readAsDataURL(f);
+}
+resetNoticeForm();
 
 // ── 5분마다 자동 갱신 ──
 setInterval(function() {
+  if (!ADMIN_TOKEN) return;
   loadData();
   setTimeout(loadTabData,    500);
   setTimeout(loadVisitorData, 1000);
