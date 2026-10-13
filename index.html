@@ -391,7 +391,7 @@ tr:hover td{background:#f8f9ff;}
     <input type="hidden" id="nfId">
     <div class="filter-row" style="flex-direction:column;align-items:stretch">
       <input id="nfTitleIn" maxlength="100" placeholder="제목 (필수)" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-      <textarea id="nfContent" rows="5" maxlength="5000" placeholder="내용" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit"></textarea>
+      <textarea id="nfContent" rows="5" maxlength="5000" placeholder="내용 (필수 · 이미지가 있으면 비워도 됩니다)" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit"></textarea>
     </div>
     <div class="filter-row">
       <label>중요도</label>
@@ -404,6 +404,12 @@ tr:hover td{background:#f8f9ff;}
       <label>이미지</label><input type="file" id="nfFile" accept="image/jpeg,image/png,image/gif,image/webp" onchange="uploadNoticeImage(this)">
       <input id="nfImg" placeholder="이미지 주소 (업로드하면 자동 입력)" style="flex:1;min-width:180px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px">
     </div>
+    <div class="filter-row">
+      <label>구글 드라이브 링크</label>
+      <input id="nfDrive" placeholder="드라이브 공유 링크를 붙여넣고 [적용]을 누르세요 (링크 공유: 링크가 있는 모든 사용자)" style="flex:1;min-width:180px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px">
+      <button class="btn btn-ghost btn-sm" type="button" onclick="applyDriveLink()">적용</button>
+    </div>
+    <div id="nfPreviewWrap" style="display:none;margin-bottom:10px"><img id="nfPreview" alt="이미지 미리보기" style="max-width:240px;max-height:160px;border:1px solid var(--border);border-radius:8px"> <button class="btn btn-ghost btn-sm" type="button" onclick="clearNoticeImage()">이미지 빼기</button></div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:10px">종료일을 비우면 계속 게시됩니다. 종료일 당일까지 보이고 다음 날 자동으로 내려갑니다. 시작일이 미래면 그날부터 보입니다.</div>
     <button class="btn btn-primary" onclick="saveNotice()" id="nfSave">저장</button>
     <button class="btn btn-ghost" onclick="resetNoticeForm()">새로 쓰기</button>
@@ -504,6 +510,21 @@ function handleAuthError(raw){
   }
   return false;
 }
+function showLoadWarn(msg){
+  let el=document.getElementById('loadWarn');
+  if(!el){el=document.createElement('div');el.id='loadWarn';
+    el.style.cssText='position:fixed;left:50%;transform:translateX(-50%);top:12px;z-index:9999;max-width:92vw;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:10px;padding:10px 16px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,.15);cursor:pointer';
+    el.title='클릭하면 닫힙니다';el.onclick=()=>el.remove();document.body.appendChild(el);}
+  el.textContent='⚠️ '+msg;
+}
+// 서버가 {error:...}를 돌려주면(시트 이름 없음 등) 빈 화면 대신 이유를 보여줌. 문제가 있으면 true
+function handleLoadError(raw,label){
+  if(raw && !Array.isArray(raw) && raw.error){
+    showLoadWarn(label+' 불러오기 실패: '+String(raw.error).slice(0,150)+' (시트 이름·배포 버전을 확인하세요)');
+    return true;
+  }
+  return false;
+}
 async function doLogin(ev){
   ev.preventDefault();
   const pw=document.getElementById('loginPw').value;
@@ -600,7 +621,7 @@ function loadData() {
     if(s) s.remove();
     document.getElementById('loadingBar').classList.remove('show');
     document.getElementById('connStatus').textContent = '❌ 연결 실패 — Apps Script doGet 설정을 확인하세요.';
-  }, 10000);
+  }, 60000);
 
   window[cbName] = function(raw) {
     clearTimeout(timer);
@@ -610,6 +631,7 @@ function loadData() {
     document.getElementById('loadingBar').classList.remove('show');
 
     if(handleAuthError(raw)){document.getElementById('connStatus').textContent='🔒 로그인이 필요합니다.';return;}
+    if(handleLoadError(raw,'질문 로그')){document.getElementById('connStatus').textContent='❌ 질문 로그 불러오기 실패';return;}
     // 날짜·시간 정규화
     allData = (Array.isArray(raw) ? raw : []).map(r => ({
       ...r,
@@ -936,8 +958,8 @@ function loadTabData() {
     const s = document.getElementById('_tab_jsonp');
     if (s) s.remove();
     document.getElementById('loadingBar').classList.remove('show');
-    console.warn('탭 클릭 데이터 로드 실패. GAS URL 및 시트 설정을 확인하세요.');
-  }, 10000);
+    showLoadWarn('탭 클릭 통계를 60초 안에 불러오지 못했습니다. 잠시 후 새로고침하거나, Apps Script를 새 버전으로 배포했는지 확인하세요.');
+  }, 60000);
 
   window[cbName] = function(raw) {
     clearTimeout(timer);
@@ -947,6 +969,7 @@ function loadTabData() {
     document.getElementById('loadingBar').classList.remove('show');
 
     if(handleAuthError(raw)) return;
+    if(handleLoadError(raw,'탭 클릭 통계')) return;
     // raw: [{date, time, menu_name}, ...] 형태 기대
     tabAllData = (Array.isArray(raw) ? raw : []).map(r => ({
       date:      parseDate(r.date || r.timestamp || r['날짜'] || ''),
@@ -1174,8 +1197,8 @@ function loadVisitorData() {
     const s = document.getElementById('_vis_jsonp');
     if (s) s.remove();
     document.getElementById('loadingBar').classList.remove('show');
-    console.warn('방문자 데이터 로드 실패. GAS 설정을 확인하세요.');
-  }, 10000);
+    showLoadWarn('방문자 통계를 60초 안에 불러오지 못했습니다. 잠시 후 새로고침하거나, Apps Script를 새 버전으로 배포했는지 확인하세요.');
+  }, 60000);
 
   window[cbName] = function(raw) {
     clearTimeout(timer);
@@ -1185,6 +1208,7 @@ function loadVisitorData() {
     document.getElementById('loadingBar').classList.remove('show');
 
     if(handleAuthError(raw)) return;
+    if(handleLoadError(raw,'방문자 통계')) return;
     visAllData = (Array.isArray(raw) ? raw : []).map(r => ({
       date:   parseDate(r.date || ''),
       time:   parseTime(r.time || ''),
@@ -1419,6 +1443,8 @@ function loadNoticeAdmin() {
   window[cbName] = function (raw) {
     delete window[cbName];
     const s = document.getElementById('_nt_jsonp'); if (s) s.remove();
+    if (handleAuthError(raw)) return;
+    if (handleLoadError(raw, '공지 목록')) return;
     noticeAdminList = Array.isArray(raw) ? raw : [];
     renderNoticeAdmin();
   };
@@ -1445,7 +1471,8 @@ function renderNoticeAdmin() {
       <td><span class="badge" style="background:#eef0f8;color:var(--blue)">${esc(n.importance)}</span> ${esc(n.title)}</td>
       <td style="font-size:11px;color:var(--muted);white-space:nowrap">${esc(n.startDate)} ~ ${esc(n.endDate || '무기한')}</td>
       <td>${Number(n.views) || 0}</td>
-      <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="editNotice(${i})">수정</button>
+      <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="toggleNoticeHidden(${i})">${n.hidden === 'Y' ? '보이기' : '숨기기'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="editNotice(${i})">수정</button>
         <button class="btn btn-sm" style="background:#fde8e8;color:#ef4444" onclick="deleteNotice(${i})">삭제</button></td>
     </tr>`;
   }).join('');
@@ -1456,6 +1483,8 @@ function resetNoticeForm() {
   document.getElementById('nfImp').value = '일반';
   document.getElementById('nfHidden').checked = false;
   document.getElementById('nfFile').value = '';
+  document.getElementById('nfDrive').value = '';
+  showNoticePreview('');
   document.getElementById('nfTitle').textContent = '✏️ 새 공지 작성';
 }
 function editNotice(i) {
@@ -1468,6 +1497,7 @@ function editNotice(i) {
   document.getElementById('nfEnd').value = n.endDate;
   document.getElementById('nfHidden').checked = n.hidden === 'Y';
   document.getElementById('nfImg').value = n.imageUrl;
+  showNoticePreview(n.imageUrl);
   document.getElementById('nfTitle').textContent = '✏️ 공지 수정';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -1485,6 +1515,7 @@ async function saveNotice() {
     imageUrl: document.getElementById('nfImg').value.trim()
   };
   if (!body.title) { noticeMsg('제목을 입력하세요.', true); return; }
+  if (!body.content.trim() && !body.imageUrl) { noticeMsg('내용을 입력하거나 이미지를 넣어 주세요.', true); return; }
   const btn = document.getElementById('nfSave'); btn.disabled = true;
   try {
     const d = await postAdmin(body);
@@ -1509,12 +1540,41 @@ function uploadNoticeImage(input) {
     noticeMsg('이미지 올리는 중...');
     try {
       const d = await postAdmin({ action: 'uploadImage', fileName: f.name, imageData: r.result });
-      if (d.result === 'success') { document.getElementById('nfImg').value = d.url; noticeMsg('이미지를 올렸습니다.'); }
+      if (d.result === 'success') { document.getElementById('nfImg').value = d.url; showNoticePreview(d.url); noticeMsg('이미지를 올렸습니다.'); }
       else noticeMsg(d.message || '업로드 실패', true);
     } catch (e) { noticeMsg('업로드 실패', true); }
   };
   r.readAsDataURL(f);
 }
+
+// ── 이미지: 미리보기 / 드라이브 링크 붙여넣기 / 숨기기·보이기 ──
+function showNoticePreview(url) {
+  const w = document.getElementById('nfPreviewWrap'), im = document.getElementById('nfPreview');
+  if (url && /^https:\/\//.test(url)) { im.src = url; w.style.display = 'block'; }
+  else { im.removeAttribute('src'); w.style.display = 'none'; }
+}
+function clearNoticeImage() {
+  document.getElementById('nfImg').value = ''; document.getElementById('nfFile').value = ''; showNoticePreview('');
+}
+function extractDriveId(url) {
+  const m = String(url || '').match(/\/file\/d\/([a-zA-Z0-9_-]{15,})/) || String(url || '').match(/[?&]id=([a-zA-Z0-9_-]{15,})/);
+  return m ? m[1] : '';
+}
+function applyDriveLink() {
+  const id = extractDriveId(document.getElementById('nfDrive').value.trim());
+  if (!id) { noticeMsg('드라이브 링크에서 파일 번호를 찾지 못했습니다. [공유 → 링크 복사]한 주소인지 확인하세요.', true); return; }
+  const url = `https://drive.google.com/thumbnail?id=${id}&sz=w1600`;
+  document.getElementById('nfImg').value = url; showNoticePreview(url);
+  noticeMsg('이미지 주소를 넣었습니다. (미리보기가 안 보이면 드라이브 공유가 "링크가 있는 모든 사용자"인지 확인)');
+}
+async function toggleNoticeHidden(i) {
+  const n = noticeAdminList[i];
+  try {
+    const d = await postAdmin({ action: 'noticeUpdate', id: n.id, hidden: n.hidden === 'Y' ? 'N' : 'Y' });
+    if (d.result === 'success') loadNoticeAdmin(); else alert(d.message || '변경 실패');
+  } catch (e) {}
+}
+document.addEventListener('input', e => { if (e.target && e.target.id === 'nfImg') showNoticePreview(e.target.value.trim()); });
 resetNoticeForm();
 
 // ── 5분마다 자동 갱신 ──
